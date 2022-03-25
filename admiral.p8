@@ -36,24 +36,37 @@ function _draw()
 	
 	----draw wind arrow
 	draw_wind()
-	print("wind is ".. wind,16,0)
+	--print("wind is ".. wind,16,0)
+	drawwndws()
+
 end
 -->8
 --init
 function init_game()
+	names = {"boat",										
+										"galera",
+										"fregat",
+										"galeon"										
+										}
 	flot = {}
 	for i = 1, 4 do
 		flot[i] = {id = i, 
 		x = flr(rnd(15)),
 		y = flr(rnd(13)),
 		spd = 5,
+		hp = 3,
+		name = names[i]
 		}		
 	end	
-	selected = 1
+	sel = 1
 	wind = flr(rnd(8)) + 1
 	dx8 = {0,1,1,1,0,-1,-1,-1}
 	dy8 = {-1,-1,0,1,1,1,0,-1}
 	turn_cells = {}
+	wndws = {}
+	
+	--test windows--
+	--addwnd(32,32,64,64,{"hello","world"})
 end
 -->8
 --update
@@ -63,16 +76,24 @@ end
 
 function update_select()
 	if btnp(1) then
-		selected += 1
-		if selected > #flot then 
-			selected = 1
+		sel += 1
+		if sel > #flot then 
+			sel = 1
 		end
 	elseif btnp(0) then
-		selected -= 1
-		if selected < 1 then
-			selected = #flot
+		sel -= 1
+		if sel < 1 then
+			sel = #flot
 		end
 	elseif btnp(4) then
+		ship = flot[sel]
+		addwnd(32,32,63,48,
+		{""..ship.name,
+			"-------------",
+			"speed.."..ship.spd,
+			"health.."..ship.hp,
+			"-------------",			
+		"select action"})
 		calc_turn_cells()
 		_upd = update_action_select
 		_drw = draw_action_select			
@@ -81,6 +102,7 @@ end
 
 function update_action_select()
 	if btnp(4) then
+		del(wndws,wndws[#wndws])
 		_upd = update_select
 		_drw = draw_select
 	end
@@ -96,8 +118,8 @@ function draw_game()
 end
 
 function draw_select()
-	local x1 = flot[selected].x*8
-	local y1 = flot[selected].y*8
+	local x1 = flot[sel].x*8
+	local y1 = flot[sel].y*8
 	rect(x1,y1,x1+8,y1+8,9)
 end
 
@@ -107,8 +129,8 @@ end
 
 function draw_action_select()		
 	for i = 1,8 do
-	local rx,ry = flot[selected].x,
-															flot[selected].y
+	local rx,ry = flot[sel].x,
+															flot[sel].y
 		for j = 1,turn_cells[i] do
 			rx += dx8[i]
 			ry += dy8[i]
@@ -146,7 +168,7 @@ end
 -->8
 --tools
 function calc_turn_cells()
-	max_turns = flot[selected].spd	
+	max_turns = flot[sel].spd	
 	turn_cells[wind] = max_turns
 	for i = 1,4 do
 		max_turns = max(max_turns-1,0)
@@ -158,7 +180,38 @@ function calc_turn_cells()
 		turn_cells[direct1] = max_turns
 		turn_cells[direct2] = max_turns
 	end
+end
 
+function rectfill2(x,y,w,h,c)
+	rectfill(x,y,x+w-1,y+h-1,c)
+end
+-->8
+--ui
+function addwnd(_x,_y,_w,_h,_txt)
+	local w = {x=_x,
+												y=_y,
+												w=_w,
+												h=_h,
+												txt=_txt}
+	add(wndws,w)
+	return w	
+end
+
+function drawwndws()	
+	for w in all(wndws) do
+		local wx,wy,ww,wh,wtxt = w.x,w.y,w.w,w.h,w.txt		
+		rectfill2(wx,wy,ww,wh,2)
+		rectfill2(wx+1,wy+1,ww-2,wh-2,15)
+		rectfill2(wx+2,wy+2,ww-4,wh-4,4)
+	
+		wx+=4
+		wy+=4
+		clip(wx,wy,wx+ww-8,wy+wh-8)
+		for i = 1,#wtxt do
+			print(wtxt[i],wx,wy,15)
+			wy+=6
+		end	
+	end	
 end
 __gfx__
 00000000000000000000000000009888009889880000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
