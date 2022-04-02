@@ -60,8 +60,7 @@ function init_game()
 		spd = 5,
 		hp = 3,
 		name = names[i],
-		fire_dist = 7,
-		dst=0,	
+		fire_dist = 7,					
 		ox=0,
 		oy=0,
 		sox=0,
@@ -152,6 +151,9 @@ function update_action_select()
 		if choose == 0 then
 			direct = wind
 			calc_turn_cells()
+			flot[sel].min_mt=flot[sel].spd
+			flot[sel].delta=0
+			flot[sel].max_d=0
 			_upd = update_move_select
 			_drw = draw_move_select
 		else
@@ -170,25 +172,26 @@ end
 
 function update_move_select()
 	local s=flot[sel]
-	local cc=turn_cells[direct]
-	local ld=s.dst
-	----think about delta turns----	
+	local cc=turn_cells[direct]	
+		
 	if btnp(0) then
 		sfx(0)
-		direct-=1
-		if(direct<1) direct = 8					
+		direct-=1		
+		if(direct<1) direct = 8							
 	elseif btnp(1) then
 		sfx(0)
-		direct+=1
-		if(direct>8) direct = 1				
+		direct+=1		
+		if(direct>8) direct = 1					
 	elseif btnp(2) then
 		sfx(0)
-		s.dst=max(s.dst-1,0)		
+		s.mt=min(s.mt+1,cc)	
 	elseif btnp(3) then
 		sfx(0)
-		s.dst=min(s.dst+1,s.spd-1)		
+		if(s.mt>cc) s.mt=cc
+		s.mt=max(s.mt-1,1)		
 	elseif btnp(4) then		
 		sfx(1)
+		if(s.mt>cc) s.mt=cc
 		local dx = dx8[direct]*s.mt
 		local dy = dy8[direct]*s.mt 				
 		ship.ox = -dx
@@ -206,11 +209,7 @@ function update_move_select()
 		_upd = update_action_select
 		_drw = draw_action_select
 	end	
-	if cc <= (s.spd-s.dst) then
-		s.mt=max(1,cc-s.dst)
-	else
-		s.mt=s.spd-s.dst
-	end
+		
 end
 
 function update_fire_select()
@@ -240,7 +239,7 @@ end
 
 function update_move()
 	t_upd+=1
-	local dur=10*turn_cells[direct]
+	local dur=10*flot[sel].mt--turn_cells[direct]
 	local dlt=t_upd/dur
 	ship = flot[sel]
 	ship.ox = lerp(ship.sox,0,dlt)
