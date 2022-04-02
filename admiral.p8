@@ -53,18 +53,21 @@ function init_game()
 			_y = flr(rnd(15))			
 		until getship(_x,_y) == nil
 		
-		flot[i] = {id = i, 
+		flot[i] = {
+		id = i, 
 		x = _x,
 		y = _y,
 		spd = 5,
 		hp = 3,
 		name = names[i],
 		fire_dist = 7,
+		dst=0,	
 		ox=0,
 		oy=0,
 		sox=0,
 		soy=0
-		}		
+		}
+		flot[i].mt=flot[i].spd		
 	end
 		
 	sel = 1
@@ -166,23 +169,34 @@ function update_action_select()
 end
 
 function update_move_select()
+	local s=flot[sel]
+	local cc=turn_cells[direct]
+	local ld=s.dst
+	----think about delta turns----	
 	if btnp(0) then
 		sfx(0)
 		direct-=1
-		if(direct<1) direct = 8
+		if(direct<1) direct = 8					
 	elseif btnp(1) then
 		sfx(0)
 		direct+=1
-		if(direct>8) direct = 1
+		if(direct>8) direct = 1				
+	elseif btnp(2) then
+		sfx(0)
+		s.dst=max(s.dst-1,0)		
+	elseif btnp(3) then
+		sfx(0)
+		s.dst=min(s.dst+1,s.spd-1)		
 	elseif btnp(4) then		
 		sfx(1)
-		ship=flot[sel]		
-		ship.ox = -dx8[direct]*turn_cells[direct]
-		ship.oy = -dy8[direct]*turn_cells[direct]
+		local dx = dx8[direct]*s.mt
+		local dy = dy8[direct]*s.mt 				
+		ship.ox = -dx
+		ship.oy = -dy
 		ship.sox=ship.ox
 		ship.soy=ship.oy
-		ship.x += dx8[direct]*turn_cells[direct]
-		ship.y += dy8[direct]*turn_cells[direct]
+		ship.x += dx
+		ship.y += dy
 		t_upd=0
 		_upd = update_move
 		_drw = draw_move
@@ -191,14 +205,18 @@ function update_move_select()
 		add_shipinfo_wnd()
 		_upd = update_action_select
 		_drw = draw_action_select
+	end	
+	if cc <= (s.spd-s.dst) then
+		s.mt=max(1,cc-s.dst)
+	else
+		s.mt=s.spd-s.dst
 	end
-	
 end
 
 function update_fire_select()
 	if btnp(0) then
 		sfx(0)
-		direct-=1
+		direct-=1		
 		if(direct<1) direct = 8
 	elseif btnp(1) then
 		sfx(0)
@@ -227,7 +245,8 @@ function update_move()
 	ship = flot[sel]
 	ship.ox = lerp(ship.sox,0,dlt)
 	ship.oy = lerp(ship.soy,0,dlt)	
-	if dlt>=1 then		
+	if dlt>=1 then
+		ship.mt=ship.spd		
 		_upd = update_select
 		_drw = draw_select
 	end
@@ -281,14 +300,15 @@ function draw_action_select()
 end
 
 function draw_move_select()
+	s=flot[sel]
 	for i = 1,8 do
-		local rx,ry = flot[sel].x,
-																flot[sel].y
+		local rx,ry = s.x,
+																s.y
 		for j = 1,turn_cells[i] do
 			rx += dx8[i]
 			ry += dy8[i]			
-			spr(239,rx*8,ry*8)
-			if (i == direct) spr(223,rx*8,ry*8)		
+			spr(239,rx*8,ry*8)			
+			if (i == direct and j<=s.mt) spr(223,rx*8,ry*8)					
 		end		
 	end 	 
 end
@@ -433,6 +453,16 @@ function lerp(b,e,d)
 	if(d>1) return e
 	return b*(1-d)+e*d
 end
+
+--[[semms to be unneeded
+function max_turns()
+	local mt=0
+	for t in all(turn_cells) do
+		if(t>mt) mt=t
+	end
+	retur mt
+end
+--]]
 -->8
 --ui
 function addwnd(_x,_y,_w,_h,_txt)
