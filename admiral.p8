@@ -24,6 +24,7 @@ end
 function _draw()
 	cls(0)
 	map()
+	draw_reflects()
 	draw_flot()
 	
 	_drw()
@@ -35,8 +36,9 @@ function _draw()
 	--print("wind is ".. wind,16,0)
 	drawwndws()
 
+	--print(test_check,cam_x+8,cam_y+8,8)
 --[[
-	print(cam_ox,cam_x+8,cam_y+8,8)
+	print(turn,cam_x+8,cam_y+8,8)
 	print(cam_oy,cam_x+16,cam_y+8,8)
 	print(cam_x,cam_x+8,cam_y+16,8)
 	print(cam_y,cam_x+32,cam_y+16,8)
@@ -45,7 +47,9 @@ end
 -->8
 --init
 function init_game()
+ test_check=false
 	map_w,map_h=25,25
+	f_size = 4
 	names = {"boat",										
 										"galera",
 										"fregat",
@@ -56,30 +60,43 @@ function init_game()
 	ani_bulk={96,97,98,99,100,101}
 	ani_shoot={112,113,114,115,116,117} 
 	flot = {}
+	turn=0
 	
-	for i = 1, 4 do
+	for i = 1, f_size*2 do
 		local _x,_y = -1,-1
 		
 		repeat
 			_x = flr(rnd(15))
 			_y = flr(rnd(15))			
 		until getship(_x,_y) == nil
+		local adder=i%f_size
 		
 		flot[i] = {
-		id = i, 
+		id = (i-1)%4+1,--for test 
 		x = _x,
 		y = _y,
-		spd = 5,
-		hp = 3,
-		name = names[i],
-		fire_dist = 7,
-		damage=1,					
+		spd = adder==0 and 9 or 5+adder,
+		hp = adder==0 and 6 or 2+adder,
+		name = names[(i-1)%4+1],--for test
+		fire_dist = 5+adder,
+		damage=adder==0 and 4 or adder,					
 		ox=0,
 		oy=0,
 		sox=0,
-		soy=0
+		soy=0,
+		cur_mdir=0,
+		cur_fdir=0,
+		can_move=true,
+		can_fire=true			
 		}
-		flot[i].mt=flot[i].spd		
+		
+		if i>f_size then
+			flot[i].team=1
+		else
+			flot[i].team=0
+		end
+		flot[i].mt=flot[i].spd
+		flot[i].cur_turns=flot[i].spd		
 	end
 		
 	sel = 1
@@ -145,20 +162,28 @@ end
 function update_select()
 	if btnp(1) then
 		sfx(0)
-		cam_sx,cam_sy=cam_x,cam_y
-		cam_ox,cam_oy=0,0
-		sel += 1
-		if sel > #flot then 
-			sel = 1
-		end
+		repeat
+			cam_sx,cam_sy=cam_x,cam_y
+			cam_ox,cam_oy=0,0
+			sel += 1
+			if sel > #flot then 
+				sel = 1
+			end
+			local s=flot[sel]
+		until s.team==turn and
+								chek_can(s)--]]
 	elseif btnp(0) then
 		sfx(0)
-		cam_sx,cam_sy=cam_x,cam_y
-		cam_ox,cam_oy=0,0
-		sel -= 1
-		if sel < 1 then
-			sel = #flot
-		end
+		repeat
+			cam_sx,cam_sy=cam_x,cam_y
+			cam_ox,cam_oy=0,0
+			sel -= 1
+			if sel < 1 then
+				sel = #flot
+			end
+			local s=flot[sel]			
+		until s.team==turn and
+								chek_can(s)--]]
 	elseif btnp(4) then
 		sfx(1)
 		add_shipinfo_wnd()		
@@ -168,23 +193,44 @@ function update_select()
 end
 
 function update_action_select()	
-	if btnp(0) or btnp(1) then
+	if btnp(1) then
 		sfx(0)
-		choose = (choose+1)%2	
-	elseif btnp(4) then
-		sfx(1)
-		del(wndws,cw)
+		choose = (choose+1)%3	
+	elseif btnp(0) then
+		sfx(0)
+		choose = (choose-1)%3
+	elseif btnp(4) then		
 		if choose == 0 then
-			direct = wind
-			calc_turn_cells()
-			flot[sel].min_mt=flot[sel].spd			
-			_upd = update_move_select
-			_drw = draw_move_select
+			if flot[sel].can_move then
+				sfx(1)
+				del(wndws,cw)
+				direct = wind
+				calc_turn_cells()
+				flot[sel].min_mt=flot[sel].spd			
+				_upd = update_move_select
+				_drw = draw_move_select
+			else
+				sfx(5)
+			end
+		elseif choose==1 then
+			if flot[sel].can_fire then
+				sfx(1)
+				del(wndws,cw)
+				direct = 1 
+				calc_turn_cells()
+				_upd = update_fire_select
+				_drw = draw_fire_select
+			else
+				sfx(5)
+			end
 		else
-			direct = 1 
-			calc_turn_cells()
-			_upd = update_fire_select
-			_drw = draw_fire_select
+			sfx(1)
+			flot[sel].can_move=false
+			flot[sel].can_fire=false
+			del(wndws,cw)
+			next_ship()
+			_upd=update_select
+			_drw=draw_select			
 		end
 	elseif btnp(5) then
 		sfx(1)
@@ -196,16 +242,22 @@ end
 
 function update_move_select()
 	local s=flot[sel]
-	local cc=turn_cells[direct]	
+	local cc=turn_cells[direct]		
 		
-	if btnp(0) then
+	if btnp(0) and s.can_move then
+		sfx(0)			
+		repeat 
+			direct-=1
+			if(direct<1) direct = 8
+		until turn_cells[direct]>0	
+									
+	elseif btnp(1) and s.can_move then
 		sfx(0)
-		direct-=1		
-		if(direct<1) direct = 8							
-	elseif btnp(1) then
-		sfx(0)
-		direct+=1		
-		if(direct>8) direct = 1					
+		repeat
+			direct+=1		
+			if(direct>8) direct = 1					
+		until turn_cells[direct]>0
+		
 	elseif btnp(2) then
 		sfx(0)
 		s.mt=min(s.mt+1,cc)	
@@ -215,16 +267,22 @@ function update_move_select()
 		s.mt=max(s.mt-1,1)		
 	elseif btnp(4) then		
 		sfx(1)
-		if(s.mt>cc) s.mt=cc
+		if s.mt>cc then
+		 s.mt=cc
+		 s.can_move=false
+		end
 		local dx = dx8[direct]*s.mt
-		local dy = dy8[direct]*s.mt 				
-		ship.ox = -dx
-		ship.oy = -dy
+		local dy = dy8[direct]*s.mt
+		s.cur_turns=cc-s.mt
+		calc_turn_cells()
+		if (s.cur_turns<1) s.can_move=false 				
+		s.ox = -dx
+		s.oy = -dy
 		cam_sx,cam_sy=cam_x,cam_y
-		ship.sox=ship.ox
-		ship.soy=ship.oy
-		ship.x += dx
-		ship.y += dy
+		s.sox=s.ox
+		s.soy=s.oy
+		s.x += dx
+		s.y += dy
 		t_upd=0
 		cam_ox,cam_oy=0,0
 		_upd = update_move
@@ -239,6 +297,7 @@ function update_move_select()
 end
 
 function update_fire_select()
+	local s=flot[sel]
 	if btnp(0) then
 		sfx(0)
 		direct-=1		
@@ -247,8 +306,9 @@ function update_fire_select()
 		sfx(0)
 		direct+=1
 		if(direct>8) direct = 1
-	elseif btnp(4) then		
+	elseif btnp(4) and s.can_fire then		
 		sfx(2)
+		s.can_fire=false
 		if getship(t_x,t_y) then
 			anima=ani_exp
 		else
@@ -278,7 +338,7 @@ function update_move()
 	ship.oy = lerp(ship.soy,0,dlt)	
 	if dlt>=1 then
 		ship.mt=ship.spd
-				
+		if(not chek_can(ship))	next_ship()		
 		_upd = update_select
 		_drw = draw_select
 	end
@@ -299,6 +359,7 @@ function update_fire()
 		_upd=update_damage
 		_drw=draw_damage
 		else
+			if(not chek_can(flot[sel]))	next_ship()
 			_upd=update_select
 			_drw=draw_select
 		end		
@@ -310,9 +371,11 @@ function update_damage()
 	if t_ani>60 then
 		t_ani = 0
 		if cs.hp<=0 then
+		sfx(4)
 			_upd = update_death
 			_drw = draw_death
 		else
+			if(not chek_can(flot[sel]))	next_ship()
 			_upd = update_select
 			_drw = draw_select
 		end
@@ -324,12 +387,16 @@ function update_death()
 	cs.oy=t_ani/60
 	if cs.oy>1 then
 		t_ani=0
-		sel=1
+		local prev_sel=sel
+		if cs==flot[sel] then 
+			sel=1
+			
+		end		
 		del(flot,cs)
-		cam_ox,cam_oy=0,0
-		cam_sx,cam_sy=cam_x,cam_y
-		cam_x,cam_y=flot[sel].x,flot[sel].y		
+		sel=min(prev_sel,#flot)
+		set_cam()
 		cs=nil
+		if(not chek_can(flot[sel]))	next_ship()
 		_upd = update_select
 		_drw = draw_select
 	end
@@ -348,19 +415,41 @@ end
 
 function draw_flot()
 	for i = 1, #flot do
-		local s=flot[i]		
+		local s=flot[i]	
+		local flp=false
+		local ch_col=8	
+		if s.team==1 then
+			flp=true
+			ch_col=1
+		end
+		pal(11,ch_col)
 		if _upd==update_death then
 			local c_x = peek2(0x5f28)
 			local c_y = peek2(0x5f2a)
 			clip(s.x*8-c_x,s.y*8-c_y,8,8)
-			spr(s.id,(s.x+s.ox)*8,(s.y+s.oy)*8)
-			clip(s.x*8-c_x,s.y*8-c_y+8,8,8)
-			spr(s.id+4,(s.x+s.ox)*8,(s.y-s.oy)*8+8)
+			spr(s.id,(s.x+s.ox)*8,(s.y+s.oy)*8,1,1,flp)			
 		else
-			spr(s.id,(s.x+s.ox)*8,(s.y+s.oy)*8)
-			spr(s.id+4,(s.x+s.ox)*8,(s.y+s.oy)*8+8)
+			spr(s.id,(s.x+s.ox)*8,(s.y+s.oy)*8,1,1,flp)			
 		end
-		
+		pal()
+	end
+end
+
+function draw_reflects()
+	for i = 1, #flot do
+		local s=flot[i]	
+		local flp=false			
+		if s.team==1 then
+			flp=true			
+		end		
+		if _upd==update_death then
+			local c_x = peek2(0x5f28)
+			local c_y = peek2(0x5f2a)			
+			clip(s.x*8-c_x,s.y*8-c_y+8,8,8)
+			spr(s.id+4,(s.x+s.ox)*8,(s.y-s.oy)*8+8,1,1,flp)
+		else			
+			spr(s.id+4,(s.x+s.ox)*8,(s.y+s.oy)*8+8,1,1,flp)
+		end		
 	end
 end
 
@@ -375,18 +464,29 @@ function draw_wind()
 	local c_x = peek2(0x5f28)
 	local c_y = peek2(0x5f2a)
 	spr(255-wind+1,0+c_x,0+c_y)
+	
 end
 
 function draw_action_select()	
 	local x1,y1 = cw.x+2,cw.y + cw.h + 4
 	local x2 = x1 + 12
-	local rx = choose==0 and x1 or x2
-	rectfill2(x1-2,y1-2,24,12,9)
-	rectfill2(x1-1,y1-1,22,10,4)
+	local rx = x1 + choose*12
+	local s = flot[sel]
+	rectfill2(x1-2,y1-2,36,12,9)
+	rectfill2(x1-1,y1-1,34,10,4)
 	
-	spr(237,x1,y1)
-	spr(238,x2,y1)
-	spr(239,rx,y1)		
+	if s.can_move then 
+		spr(237,x1,y1)
+	else
+		spr(234,x1,y1)
+	end
+	if s.can_fire then 
+		spr(238,x2,y1)
+	else
+		spr(235,x2,y1)
+	end
+	spr(239,rx,y1)
+	spr(221,x2+12,y1)		
 end
 
 function draw_move_select()
@@ -485,7 +585,7 @@ end
 -->8
 --tools
 function calc_turn_cells()
-	max_turns = flot[sel].spd	
+	max_turns = flot[sel].cur_turns	
 	turn_cells[wind] = max_turns
 	for i = 1,4 do
 		max_turns = max(max_turns-1,0)
@@ -504,7 +604,9 @@ function calc_turn_cells()
 		for j=1,10 do
 			rx+=dx8[i]
 			ry+=dy8[i]
-			if getship(rx,ry) then
+			if getship(rx,ry) or
+						rx<0 or ry<0 or
+						rx> map_w or ry>map_h then
 				fire_cells[i]=j
 				turn_cells[i]=min(turn_cells[i],j-1)
 				break
@@ -554,7 +656,9 @@ function lerp(b,e,d)
 end
 
 function cam()
- local sx,sy=flot[sel].x*8+4,flot[sel].y*8+4
+	if flot[sel] then
+	 sx,sy=flot[sel].x*8+4,flot[sel].y*8+4
+	end
 	if cam_ox<1 then
 	 cam_ox+=0.05
 	else
@@ -570,6 +674,72 @@ function cam()
 	cam_x=max(cam_x,64)
 	cam_y=max(cam_y,64)
 	camera(cam_x-64,cam_y-64)
+end
+
+function chek_can(s)
+	return s.can_move or s.can_fire
+end
+
+function chek_endturn()	
+ for s in all(flot) do
+		if s.team==turn and
+					(s.can_move or
+					s.can_fire) then						
+			return false			
+		end
+	end	
+	return true
+end
+
+function chek_loose()
+	local count = 0
+	for s in all(flot) do
+		if(s.team==turn) count+=1
+	end
+	if count==0 then
+		return true
+	else
+		return false
+	end
+end
+
+function change_turn()
+	if chek_endturn() then
+		for s in all(flot) do
+		 if s.team==turn then
+		 	s.mt=s.spd
+		 	s.cur_turns=s.spd
+		 	s.can_move=true
+		 	s.can_fire=true
+		 end
+		end		
+		if not chek_loose() then
+			turn = (turn+1)%2
+		end
+		sel=0		
+		repeat 
+			sel+=1
+		until flot[sel].team==turn
+		cam_ox,cam_oy=0,0
+		cam_sx,cam_sy=cam_x,cam_y
+		cam_x,cam_y=flot[sel].x,flot[sel].y
+	end
+end	
+
+function set_cam()
+	cam_ox,cam_oy=0,0
+	cam_sx,cam_sy=cam_x,cam_y
+	cam_x,cam_y=flot[sel].x,flot[sel].y
+end
+
+function next_ship()
+	change_turn()
+	repeat 
+		sel+=1
+		if(sel>#flot) sel=1
+	until chek_can(flot[sel]) and
+							flot[sel].team==turn
+	set_cam()
 end
 
 --[[semms to be unneeded
@@ -614,8 +784,8 @@ function drawwndws()
 	end	
 end
 __gfx__
-00000000000000000000000000009888009889880022220002222220022222200222222000000000000000000000000000000000000000000000000000000000
-000000000009880077098880097767000767767002d2d2d0d0d2d20dd2d2d2d22d2d2d2d00000000000000000000000000000000000000000000000000000000
+00000000000000000000000000009bbb009bb9bb0022220002222220022222200222222000000000000000000000000000000000000000000000000000000000
+000000000009bb007709bbb0097767000767767002d2d2d0d0d2d20dd2d2d2d22d2d2d2d00000000000000000000000000000000000000000000000000000000
 0070070000666000677700000767670076667670000d0d00020d0d000d0d0d00d0d0d0dd00000000000000000000000000000000000000000000000000000000
 000770000077770067777000776777707767667700d0d00000d0000000d0d0d00d0d0d0000000000000000000000000000000000000000000000000000000000
 0007700000777770067777007767776744777664000000000d0000000000000000d0d0d000000000000000000000000000000000000000000000000000000000
@@ -720,20 +890,20 @@ fffffffff9333333333333333333339fccfffffff93333333333339fffffffcc3333333300000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000009900000666d00
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000049f900006dd100
-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000449900006dd100
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004400000d11100
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b00009900000666d00
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000b300049f900006dd100
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b70b30000449900006dd100
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bb30000004400000d11100
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077000077000070000000000007700770
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000000700001700a808000070000007
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001700000011070000007
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ddddddd7aa80117100000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000111111d10000111100000000
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d10a808011070000007
-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000700000070000d1000000000070000007
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000077000077000010000000000007700770
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000070000000000077000077000070000000000007700770
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000005700660500007000000700001700a808000070000007
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000005700000055000000000000001700000011070000007
+00000000000000000000000000000000000000000000000000000000000000000000000000000000666666676650557500000000ddddddd7aa80117100000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000555555650000555500000000111111d10000111100000000
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000650650505500000000000000d10a808011070000007
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000650000000000700000070000d1000000000070000007
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000050000000000077000077000010000000000007700770
 00000000000000000000000000000000000000000000000000000000000000008888000000000000000000080008100080000000000000000000888800081000
 00000000000000000000000000000000000000000000000000000000000000001880000000800000000000810008100018000000000008000000088100881100
 00000000000000000000000000000000000000000000000000000000000000001180000008800000000008100008100001800000000008800000081108881110
@@ -767,3 +937,5 @@ __sfx__
 000100001b7502d7503f7503075021750167500f7500a750077500475002750017500000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 000300003d6503f6503f6503c650336502b64024640206401c6401964013640106300e6300d6300c6300b6300a630086200762006620046200462003610036100361003610036100261005600046000360003600
 000400003f6103f6403f6703f6703f6703f6603f6603b660366503465029650226501c640186401564012640106300c6300a63008630076300562005620056100461004610036100361002610036100361003610
+00050000041200a120081200f1200d12015120121201a120161201c120171201b12015120191201412017120121201512010120141100e110121100c110101100b11010110091100c110071100a1100511003110
+0003000023330153300b3200632002310023000130000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
