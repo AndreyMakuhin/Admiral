@@ -81,7 +81,8 @@ function init_game()
 		x = _x,
 		y = _y,
 		spd = adder==0 and 9 or 5+adder,
-		hp = adder==0 and 6 or 2+adder,
+		--hp = adder==0 and 6 or 2+adder,
+		hp=1,
 		name = names[(i-1)%4+1],--for test
 		fire_dist = 5+adder,
 		damage=adder==0 and 4 or adder,					
@@ -200,12 +201,18 @@ function update_select()
 end
 
 function update_action_select()	
+	local oldchose=choose
 	if btnp(1) then
 		sfx(0)
 		choose = (choose+1)%3	
 	elseif btnp(0) then
 		sfx(0)
 		choose = (choose-1)%3
+	elseif btnp(3) and choose ~= 3 then
+		oldchoose=choose
+		choose=3
+	elseif btnp(2) and choose == 3 then
+		choose=oldchoose		
 	elseif btnp(4) then		
 		if choose == 0 then
 			if flot[sel].can_move then
@@ -230,14 +237,26 @@ function update_action_select()
 			else
 				sfx(5)
 			end
-		else
+		elseif choose==2 then
 			sfx(1)
 			flot[sel].can_move=false
 			flot[sel].can_fire=false
 			del(wndws,cw)
 			next_ship()
 			_upd=update_select
-			_drw=draw_select			
+			_drw=draw_select	
+		elseif choose==3 then
+			sfx(1)
+			del(wndws,cw)
+			for s in all(flot) do
+				if s.team==turn then
+					s.can_move=false
+					s.can_fire=false					
+				end				
+			end
+			change_turn()
+			_upd=update_select
+			_drw=draw_select		
 		end
 	elseif btnp(5) then
 		sfx(1)
@@ -435,6 +454,7 @@ function draw_flot()
 			local c_y = peek2(0x5f2a)
 			clip(s.x*8-c_x,s.y*8-c_y,8,8)
 			spr(s.id,(s.x+s.ox)*8,(s.y+s.oy)*8,1,1,flp)			
+			clip()
 		else
 			spr(s.id,(s.x+s.ox)*8,(s.y+s.oy)*8,1,1,flp)			
 		end
@@ -479,14 +499,30 @@ end
 
 function draw_action_select()	
 	local c_x = peek2(0x5f28)
-	local c_y = peek2(0x5f2a)	
+	local c_y = peek2(0x5f2a)
+	local _txt=""	
 	local x1,y1 = c_x+cw.x+16,
-	c_y+cw.y+cw.h-12
+	c_y+cw.y+cw.h-20
 	local x2 = x1 + 12
-	local rx = x1 + choose*12
+	local rx,ry = x1 + choose*12,y1
+	if choose==3 then
+		rx=x2
+		ry+=9
+	end
 	local s = flot[sel]
 	--rectfill2(x1-2,y1-2,36,12,9)
 	--rectfill2(x1-1,y1-1,34,10,4)
+	if choose==0 then
+		_txt="move"
+	elseif choose==1 then
+		_txt="fire"
+	elseif choose==2 then
+		_txt="end ship turn"
+	elseif choose==3 then
+		_txt="end all turns"
+	end	
+	
+	print(_txt,x1-12,y1-7,6)
 	
 	if s.can_move then 
 		spr(237,x1,y1)
@@ -498,8 +534,9 @@ function draw_action_select()
 	else
 		spr(235,x2,y1)
 	end
-	spr(239,rx,y1)
-	spr(221,x2+12,y1)		
+	spr(239,rx,ry)
+	spr(221,x2+12,y1)
+	spr(220,x2,y1+9)		
 end
 
 function draw_move_select()
@@ -573,18 +610,21 @@ function draw_bottom_menu()
 	local team_spr = turn==0 and 205 or 206
 	spr(team_spr,116+c_x,110+c_y)
 	for i=1,f_size*2 do
+	
 		local s=flot[i]
-		local j=i<=f_size and i or i-f_size
-		if s.team==turn then
-			rectfill2(9+j*12+c_x,115+c_y,10,10,1)
-			pal(11,s.team==0 and 8 or 12)
-			spr(s.id,10+j*12+c_x,116+c_y)
-			pal()
-			if sel==i then
-			rect(9+j*12+c_x,115+c_y,
-			9+j*12+c_x+9,115+c_y+9,9)
-				--spr(236,10+j*12+c_x,116+c_y)
-			end
+		if s then
+			local j=i<=f_size and i or i-f_size
+			if s.team==turn then
+				rectfill2(9+j*12+c_x,115+c_y,10,10,1)
+				pal(11,s.team==0 and 8 or 12)
+				spr(s.id,10+j*12+c_x,116+c_y)
+				pal()
+				if sel==i then
+					rect(9+j*12+c_x,115+c_y,
+					9+j*12+c_x+9,115+c_y+9,9)
+						--spr(236,10+j*12+c_x,116+c_y)
+				end
+			end	
 		end
 	end
 end
@@ -673,7 +713,7 @@ function add_shipinfo_wnd()
 	ship = flot[sel]
 	local camera_x = peek2(0x5f28)
 	local camera_y = peek2(0x5f2a)
-	cw = addwnd(32,6,64,68,
+	cw = addwnd(32,6,64,80,
 	{""..ship.name,
 		"-------------",
 		"team..."..(ship.team==0 and "red" or "blue"),
@@ -681,7 +721,7 @@ function add_shipinfo_wnd()
 		"health.."..ship.hp,
 		"damage.."..ship.damage,
 		"-------------",			
-	"select action"})
+	"select action:"})
 	choose = 0		
 end
 
@@ -758,17 +798,19 @@ function change_turn()
 		 	s.can_move=true
 		 	s.can_fire=true
 		 end
-		end		
-		if not chek_loose() then
-			turn = (turn+1)%2
 		end
-		sel=0		
-		repeat 
-			sel+=1
-		until flot[sel].team==turn
-		cam_ox,cam_oy=0,0
-		cam_sx,cam_sy=cam_x,cam_y
-		cam_x,cam_y=flot[sel].x,flot[sel].y
+		turn = (turn+1)%2		
+		if not chek_loose() then			
+			sel=0		
+			repeat 
+				sel+=1
+			until flot[sel] and flot[sel].team==turn
+			cam_ox,cam_oy=0,0
+			cam_sx,cam_sy=cam_x,cam_y
+			cam_x,cam_y=flot[sel].x,flot[sel].y
+		else
+			turn=(turn+1)%2
+		end
 	end
 end	
 
@@ -939,12 +981,12 @@ fffffffff9333333333333333333339fccfffffff93333333333339fffffffcc3333333300000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000288888801cccccc000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000222222221111111100000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b00009900000666d00
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000007000b300049f900006dd100
-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b70b30000449900006dd100
-0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000bb30000004400000d11100
-00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005555550000000000000000000000000
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066ff660000000b00009900000666d00
+0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066660007000b300049f900006dd100
+000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006ff6000b70b30000449900006dd100
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006ffff6000bb30000004400000d11100
+00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005555550000300000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000070000000000077000077000070000000000007700770
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000005700660500007000000700001700a808000070000007
