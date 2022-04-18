@@ -54,7 +54,7 @@ function init_game()
 	l_sig={255,64,16,4,1,193,112,28,7,127,223,247,253,245,125,95,215,31,124,241,199,0,85,113,92,23,197,209,116,29,71,87,213,117,93,119,221,65,80,20,5,81,84,21,69,68,17,}
 	l_msk={0,170,170,170,170,42,138,162,168,0,0,0,0,0,0,0,0,160,130,10,40,170,0,10,130,160,40,10,130,160,40,0,0,0,0,0,0,42,138,162,168,10,130,160,40,170,170,}
  test_check=false
-	map_w,map_h=25,25
+	map_w,map_h=30,30
 	
 	f_size = 4
 	names = {"boat",										
@@ -70,8 +70,12 @@ function init_game()
 	turn=0
 	
 	init_map()
-	isl1=gen_island(10,10,15)
+	isl1=gen_island(8,8,15)
+	isl2=gen_island(15,15,15)
+	isl3=gen_island(22,22,15)
 	do_isl_borders(isl1)
+	do_isl_borders(isl2)
+	do_isl_borders(isl3)
 	
 	for i = 1, f_size*2 do
 		local _x,_y = -1,-1
@@ -94,8 +98,8 @@ function init_game()
 		x = _x,
 		y = _y,
 		spd = adder==0 and 9 or 5+adder,
-		--hp = adder==0 and 6 or 2+adder,
-		hp=1,
+		hp = adder==0 and 6 or 2+adder,
+		--hp=1,
 		name = names[(i-1)%4+1],--for test
 		fire_dist = 5+adder,
 		damage=adder==0 and 4 or adder,					
@@ -754,12 +758,14 @@ function calc_turn_cells()
 			ry+=dy8[i]
 			if getship(rx,ry) or
 						rx<0 or ry<0 or
-						rx> map_w or ry>map_h then
+						rx> map_w or ry>map_h or
+						fget(mget(rx,ry),0) then
 				fire_cells[i]=j
 				turn_cells[i]=min(turn_cells[i],j-1)
 				break
 			elseif	rx<0 or ry<0 or
-										rx> map_w or ry>map_h then
+										rx> map_w or ry>map_h  or
+										fget(mget(rx,ry),0)  then
 				fire_cells[i]=min(s.fire_dist,j-1)
 				if turn_cells[i]>j then
 					turn_cells[i]=j-1
