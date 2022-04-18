@@ -3,6 +3,7 @@ version 18
 __lua__
 --game for batleships
 --a.makuhin 2022
+--test
 
 function _init()
 	mouse.init()
